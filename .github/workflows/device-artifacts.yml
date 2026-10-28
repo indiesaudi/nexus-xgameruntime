@@ -44,6 +44,10 @@ jobs:
             $prefix-w64-mingw32-objdump -d --no-show-raw-insn $f > dis.txt
             echo "$f: movq-mem=$(grep -cE 'movq +(%xmm[0-9]+,.*\(|.*\(.*,%xmm[0-9]+)' dis.txt) movlps/movhps-mem=$(grep -cE 'mov[lh]ps .*\(' dis.txt) fildll/fistpll=$(grep -cE 'fildll|fistpll' dis.txt) cmpxchg8b=$(grep -c cmpxchg8b dis.txt) marker=$(grep -c nexus-fex-safe-i386-atomics-v1 $f)" | tee -a build/component/bin/atomic-audit.txt
           done
+      - name: x87 64-bit copy pairs (atomic load/store pattern)
+        if: matrix.arch == 'win32'
+        run: |
+          i686-w64-mingw32-objdump -d --no-show-raw-insn build/component/bin/xgameruntime.dll | awk '/fildll/{p=$0;n=NR;next} n&&NR==n+1&&/fistpll/{c++;print p" ; "$0} {n=0} END{print "pairs="c+0}' | tail -15
       - uses: actions/upload-artifact@v4
         with:
           name: device-${{ matrix.arch }}
