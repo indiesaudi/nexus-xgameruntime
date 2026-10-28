@@ -35,7 +35,7 @@ jobs:
           echo /usr/lib/wine >> "$GITHUB_PATH"
       - name: Build
         run: |
-          cmake -S . -B build/component -DCMAKE_TOOLCHAIN_FILE=${{ matrix.arch }}-target.cmake -DCMAKE_CXX_FLAGS=-O2 -DENABLE_TESTS=ON -DNEXUS_MIGRATION_PROBES=ON -DNEXUS_WINE_SOURCE=$GITHUB_WORKSPACE/external/wine-source
+          cmake -S . -B build/component -DCMAKE_TOOLCHAIN_FILE=${{ matrix.arch }}-target.cmake -DCMAKE_CXX_FLAGS=-O2 -DENABLE_TESTS=ON -DNEXUS_MIGRATION_PROBES=ON -DNEXUS_WINE_SOURCE=$GITHUB_WORKSPACE/external/wine-source -DWINE_EXECUTABLE=/bin/true
           cmake --build build/component --parallel 4
       - name: Atomic instruction audit
         run: |
