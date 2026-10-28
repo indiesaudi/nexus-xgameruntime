@@ -1,0 +1,51 @@
+name: Device test artifacts (scratch)
+on:
+  push:
+    branches: ['scratch/**']
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [win32, win64]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/checkout@v4
+        with:
+          repository: ValveSoftware/wine
+          ref: 7fc704ef49c50e9702c9983a5250d5738697bb04
+          path: external/wine-source
+          sparse-checkout: |
+            libs/xml2
+            include
+      - name: Toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends cmake make gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64 gcc-mingw-w64-i686 g++-mingw-w64-i686 wine64-tools binutils-mingw-w64-i686
+          for arch in x86_64 i686; do
+            sudo update-alternatives --set $arch-w64-mingw32-gcc /usr/bin/$arch-w64-mingw32-gcc-posix
+            sudo update-alternatives --set $arch-w64-mingw32-g++ /usr/bin/$arch-w64-mingw32-g++-posix
+          done
+          echo /usr/lib/wine >> "$GITHUB_PATH"
+      - name: Build
+        run: |
+          cmake -S . -B build/component -DCMAKE_TOOLCHAIN_FILE=${{ matrix.arch }}-target.cmake -DCMAKE_CXX_FLAGS=-O2 -DENABLE_TESTS=ON -DNEXUS_MIGRATION_PROBES=ON -DNEXUS_WINE_SOURCE=$GITHUB_WORKSPACE/external/wine-source
+          cmake --build build/component --parallel 4
+      - name: Atomic instruction audit
+        run: |
+          prefix=$([ ${{ matrix.arch }} = win32 ] && echo i686 || echo x86_64)
+          for f in build/component/bin/xgameruntime.dll build/component/bin/test_xgameruntime.exe; do
+            $prefix-w64-mingw32-objdump -d --no-show-raw-insn $f > dis.txt
+            echo "$f: movq-mem=$(grep -cE 'movq +(%xmm[0-9]+,.*\(|.*\(.*,%xmm[0-9]+)' dis.txt) movlps/movhps-mem=$(grep -cE 'mov[lh]ps .*\(' dis.txt) fildll/fistpll=$(grep -cE 'fildll|fistpll' dis.txt) cmpxchg8b=$(grep -c cmpxchg8b dis.txt) marker=$(grep -c nexus-fex-safe-i386-atomics-v1 $f)" | tee -a build/component/bin/atomic-audit.txt
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: device-${{ matrix.arch }}
+          path: build/component/bin/
+          retention-days: 7
